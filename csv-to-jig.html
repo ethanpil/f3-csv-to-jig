@@ -1,0 +1,267 @@
+<html>
+    <head>
+        <title>CSV 2 Jig</title>
+        
+        <script src="//ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+        <script src="//cdn.jsdelivr.net/phpjs/0.1/misc/uniqid.js"></script>
+        
+        <style type="text/css">
+            body {
+                font-family: arial;
+                font-size: 10px;
+            }
+            textarea {
+                width: 95%;
+                height: 90%;
+                padding: 1%;
+                margin: 1% auto;
+                display: block;
+            }
+            
+            .col {
+                float: left;
+            }
+            
+            .big {
+                width: 45%;
+            }
+            
+            .sm{
+                padding-top: 20%;
+                width: 10%;                
+            }
+            
+            button {
+                width: 99%;
+                padding: 1em 0;
+                margin: 1em auto;
+                display: block;
+            }
+            
+            #help-text {
+                display: none;
+                cursor: pointer;
+                font-size: 12px;
+                background: #eee;
+                padding: 1em;
+            }
+            
+        </style>
+        
+        <script>
+            // Source: http://www.bennadel.com/blog/1504-Ask-Ben-Parsing-CSV-Strings-With-Javascript-Exec-Regular-Expression-Command.htm
+            // This will parse a delimited string into an array of
+            // arrays. The default delimiter is the comma, but this
+            // can be overriden in the second argument.
+
+            function CSVToArray(strData, strDelimiter) {
+                // Check to see if the delimiter is defined. If not,
+                // then default to comma.
+                strDelimiter = (strDelimiter || ",");
+                // Create a regular expression to parse the CSV values.
+                var objPattern = new RegExp((
+                // Delimiters.
+                "(\\" + strDelimiter + "|\\r?\\n|\\r|^)" +
+                // Quoted fields.
+                "(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+                // Standard fields.
+                "([^\"\\" + strDelimiter + "\\r\\n]*))"), "gi");
+                // Create an array to hold our data. Give the array
+                // a default empty first row.
+                var arrData = [[]];
+                // Create an array to hold our individual pattern
+                // matching groups.
+                var arrMatches = null;
+                // Keep looping over the regular expression matches
+                // until we can no longer find a match.
+                while (arrMatches = objPattern.exec(strData)) {
+                    // Get the delimiter that was found.
+                    var strMatchedDelimiter = arrMatches[1];
+                    // Check to see if the given delimiter has a length
+                    // (is not the start of string) and if it matches
+                    // field delimiter. If id does not, then we know
+                    // that this delimiter is a row delimiter.
+                    if (strMatchedDelimiter.length && (strMatchedDelimiter != strDelimiter)) {
+                        // Since we have reached a new row of data,
+                        // add an empty row to our data array.
+                        arrData.push([]);
+                    }
+                    // Now that we have our delimiter out of the way,
+                    // let's check to see which kind of value we
+                    // captured (quoted or unquoted).
+                    if (arrMatches[2]) {
+                        // We found a quoted value. When we capture
+                        // this value, unescape any double quotes.
+                        var strMatchedValue = arrMatches[2].replace(
+                        new RegExp("\"\"", "g"), "\"");
+                    } else {
+                        // We found a non-quoted value.
+                        var strMatchedValue = arrMatches[3];
+                    }
+                    // Now that we have our value string, let's add
+                    // it to the data array.
+                    arrData[arrData.length - 1].push(strMatchedValue);
+                }
+                // Return the parsed data.
+                return (arrData);
+            }
+
+            function CSV2JSON(csv) {
+                var array = CSVToArray(csv);
+                var objArray = {};
+                
+                for (var i = 1; i < array.length; i++) {
+                    var id = uniqid('',true);
+                    objArray[id] = {};                    
+                    for (var k = 0; k < array[0].length && k < array[i].length; k++) {
+                        var key = array[0][k];
+                        objArray[id][key] = array[i][k]
+                    }
+                }
+
+                var json = JSON.stringify(objArray);
+                var str = json.replace(/},/g, "},\r\n");
+
+                return str;
+            }
+
+            $(function() {
+                
+                $("#csv2jig").click(function() {
+                    
+                    $("#json").val('');
+                    var csv = $("#csv").val();
+                    
+                    if (csv.length > 0) {
+                        var json = CSV2JSON(csv);
+                        $("#json").val(json);                        
+                    } else {
+                        alert('No data.');
+                    }
+
+                });
+
+                $("#clip").click(function() {
+                    var csv = $("#csv").val();
+                    var json = CSV2JSON(csv);                
+
+                    src = $("#json");
+                    src.select();
+
+                    try {
+                        document.execCommand('copy');
+                        src.blur();
+                        alert('Data copied to clipboard.');
+                    } catch (err) {
+                        alert('please press Ctrl/Cmd+C to copy');
+                    }                    
+                });    
+                
+                $("#download").click(function() {
+                    var csv = $("#csv").val();
+                    var json = CSV2JSON(csv);
+                    
+                    var element = document.createElement('a');
+                    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(json));
+                    element.setAttribute('download', 'jig.json');
+                    element.style.display = 'none';
+                    document.body.appendChild(element);
+                    element.click();
+                    document.body.removeChild(element);                   
+                    
+                });
+                
+                $("#clear").click(function() {
+                    $("#csv").val('');
+                    $("#json").val('');
+                });
+
+                $("#help, #help-text").click(function() {
+                    $('#help-text').slideToggle();
+                });                   
+                
+            });            
+        </script>
+    </head>
+    <body>
+        <div>
+            <h2>CSV to JIG</h2>
+            <div id="help-text">
+                <p>This tool is designed to easily create simple <a href="http://fatfreeframework.com/jig">Jig</a> databases from CSV files. If you don't know what a JIG database is then you probably dont use the <a href="http://fatfreeframework.com/">Fat Free Framework</a>.</p>
+
+                <p>Currently (and probably forever) this tool only supports simple rows of JSON data. Set the first row to the key names and then all subsequent rows will be encoded into the JIG output. Fields do not need to be enclosed in "double quotes" unless they contain special characters or commas. You can save the downloaded file and load it into JIG as a JSON database.</p>
+            </div>
+            <div class="col big">
+                <h3>CSV Data</h3>
+                <p>First row contains key names.</p>
+<textarea id="csv" name="csv">id,name
+AK,Alaska
+AL,Alabama
+AR,Arkansas
+AZ,Arizona
+CA,California
+CO,Colorado
+CT,Connecticut
+DC,District of Columbia
+DE,Delaware
+FL,Florida
+GA,Georgia
+HI,Hawaii
+IA,Iowa
+ID,Idaho
+IL,Illinois
+IN,Indiana
+KS,Kansas
+KY,Kentucky
+LA,Louisiana
+MA,Massachusetts
+MD,Maryland
+ME,Maine
+MI,Michigan
+MN,Minnesota
+MO,Missouri
+MS,Mississippi
+MT,Montana
+NC,North Carolina
+ND,North Dakota
+NE,Nebraska
+NH,New Hampshire
+NJ,New Jersey
+NM,New Mexico
+NV,Nevada
+NY,New York
+OH,Ohio
+OK,Oklahoma
+OR,Oregon
+PA,Pennsylvania
+RI,Rhode Island
+SC,South Carolina
+SD,South Dakota
+TN,Tennessee
+TX,Texas
+UT,Utah
+VA,Virginia
+VT,Vermont
+WA,Washington
+WI,Wisconsin
+WV,West Virginia
+WY,Wyoming</textarea>
+            </div>
+            
+            <div class="col sm">
+                <button id="csv2jig">Convert</button>
+                <button id="download">Download</button>
+                <button id="clip">Clipboard</button>
+                <button id="clear">Clear</button>
+                <button id="help">Help</button>
+            </div>
+            
+            
+            <div class="col big">
+                <h3>JSON Data</h3>
+                <p>&nbsp;</p>
+                <textarea id="json" name="json"></textarea>        
+            </div>
+        </div>
+    </body>
+</html>
